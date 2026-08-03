@@ -1,6 +1,6 @@
 # Income Prediction: ML Pipeline to RAG-Powered Conversational Agent
 
-A complete end-to-end machine learning and AI system. **"Stage 1"** trains and compares classical ML and neural network models for income prediction. **"Stage 2"** wraps the best model in a conversational AI agent that answers domain questions, makes predictions, and explores the dataset.
+A complete end-to-end machine learning and AI system. **Stage 1** trains and compares classical ML and neural network models for income prediction. **Stage 2** wraps the best model in a conversational AI agent that answers domain questions, makes predictions, and explores the dataset.
 
 ---
 
@@ -94,7 +94,7 @@ Raw data contained multiple missing value representations: "?", "n/a", "N/A", ""
 **Numeric columns:** Filled with the **median** of the training set (robust to outliers).  
 **Categorical columns:** Filled with the **mode** of the training set. If all values missing, filled with "Unknown".
 
-**Note:** An earlier implementation used `pd.to_numeric(errors='coerce')` which converted all categorical columns to NaN and filled with 0, effectively discarding 8 categorical features. This version preserves categorical data and encodes it properly (see Step 4).
+**Note:** An earlier implementation converted the entire dataframe (numeric and categorical columns alike) using `pd.to_numeric(errors='coerce')`, which silently turned all 8 categorical columns into NaN before they ever reached the encoding step. This version scopes that conversion to numeric columns only, so categorical values survive intact and get properly one-hot encoded in Step 4.
 
 ### STEP 3: Outlier Handling Using IQR Clipping
 
@@ -116,7 +116,7 @@ Values outside these bounds were **clipped** (Winsorized) rather than removed, p
 - `native_country` (42 categories) → 41 binary columns
 - `sex` (binary) → kept as 0/1
 
-This **preserves all categorical information** that was previously lost. The encoding was fit on the training set; unseen categories in validation/test sets are represented as all zeros.
+After encoding, the feature set grows from 14 raw columns to **102 columns**. This preserves categorical information that a naive numeric conversion would otherwise discard. The encoding was fit on the training set; unseen categories in validation/test sets are represented as all zeros.
 
 ### STEP 5: Feature Scaling
 
@@ -133,45 +133,28 @@ Two new features were created and added alongside original columns:
 
 | # | Feature | Type | Formula |
 |---|---------|------|---------|
-| 16 | `capital_diff` | Continuous | `capital_gain` - `capital_loss` |
-| 17 | `hours_log` | Continuous | `log(1 + hours_per_week)` |
+| 103 | `capital_diff` | Continuous | `capital_gain` - `capital_loss` |
+| 104 | `hours_log` | Continuous | `log(1 + hours_per_week)` |
 
 **`capital_diff`:** Combines capital gains and losses into net capital income. A person with $15,000 gain and $5,000 loss differs meaningfully from one with the same gain and $0 loss; a single feature captures this relationship better than two separate features.
 
-**`hours_log`:** Most people work ~40 hours/week, but a small group works 60+ hours. Without transformation, high values dominate. Log scaling compresses the range and makes the distribution more amenable to model learning. The `+1` prevents log(0).
+**`hours_log`:** Most people work ~40 hours/week, but a small group works 60+ hours. Without transformation, high values dominate. Log scaling compresses the range and makes the distribution more amenable to model learning. The `+1` prevents log(0). As it turns out, this ends up being the single most important feature to our best model (see Section 7) - so this transformation mattered more than we expected going in.
 
 ---
 
 ## 5. PCA Insights
 
-PCA was run on scaled training data as a mandatory exploratory step.
+Once we fixed the categorical encoding, our feature space grew a lot - from a handful of columns to **102 columns** after one-hot encoding all 8 categorical variables. This changes the PCA picture quite a bit compared to what we saw with a numeric-only feature set.
 
-**Scree Plot Findings:**
-- PC1 explains ~25% of variance
-- PC1 + PC2 explain ~40% of variance
-- First 4 components explain ~80% of variance
-- First 6 components explain ~90% of variance
+The scree plot shows that with this many features, no small handful of components dominates the variance anymore. We now need **76 components** to reach the 90% variance threshold, which is a big jump from the ~4-6 components we needed before the encoding fix. This actually makes sense: instead of a few continuous variables like `hours_per_week` and `education_num` carrying most of the signal, we now have dozens of one-hot columns (individual occupation types, native countries, etc.), and each one only contributes a tiny sliver of variance on its own.
 
-**PC1 Loadings (Top Features):**
-The first principal component is dominated by:
-1. `hours_per_week` (high positive loading)
-2. `hours_log` (high positive loading)
-3. `education_num` (high positive loading)
-
-**Interpretation:** Work hours and education are the strongest signals in the data. People who work more hours and have higher education tend to cluster together in PC1 space.
-
-**PC2 Loadings (Top Features):**
-The second principal component is dominated by:
-1. `fnlwgt` (census weight)
-2. `age`
-3. `education_num`
-
-**Interpretation:** Demographic factors (age) and sampling characteristics drive PC2 variance.
+This doesn't mean PCA became useless here - it just means the categorical features carry a lot of small, spread-out signal rather than a few dominant directions. The 2D scatter plot (PC1 vs PC2) still shows the ≤50K and >50K classes overlapping quite a bit, which confirms what we already suspected: this isn't something a simple linear cut on two axes can separate cleanly.
 
 **2D Scatter Plot (PC1 vs PC2):**
-- **Class Overlap:** Blue (≤50K) and red (>50K) points heavily overlap, especially in the center. Clean separation is impossible with linear boundaries.
+- **Class Overlap:** Blue (≤50K) and red (>50K) points heavily overlap, especially in the center.
 - **Vertical Banding:** Distinct stripes visible, reflecting the categorical feature structure (education level, occupation, etc. create discrete groupings).
-- **Implication:** Non-linear decision boundaries (Random Forest, Neural Networks) are justified to find complex relationships in the data.
+
+_Note:_ With 102 columns, individual PCA loadings stop being very interpretable one by one, so we didn't try to pick out "top 5 features per component" this time the way we could before. For that, the model's own feature importances (see Section 7) give a much clearer picture of what's actually driving predictions.
 
 ---
 
@@ -179,43 +162,51 @@ The second principal component is dominated by:
 
 ### Classical ML vs Neural Network (Test Set Results)
 
-| Metric | Logistic Regression | Random Forest | Neural Network |
-|--------|---------------------|---------------|----------------|
-| Accuracy | 0.730 | 0.722 | 0.794 |
-| Precision | 0.459 | 0.453 | 0.645 |
-| Recall | 0.719 | 0.753 | 0.324 |
-| F1-Score | 0.564 | 0.565 | 0.431 |
-| ROC-AUC | 0.799 | 0.815 | 0.812 |
+| Model | Training Accuracy | Validation Accuracy | Validation AUC | Test Accuracy |
+|-------|-------------------|----------------------|-----------------|-----------------|
+| Logistic Regression | 0.792 | 0.802 | 0.884 | 0.795 |
+| Random Forest | 0.788 | 0.787 | 0.883 | 0.783 |
 
-### Analysis
+Honestly, this was a bit of a surprise compared to our earlier run with numeric-only features, where Random Forest had come out ahead. With the categorical features actually being used this time, both classical models jumped noticeably in performance. And this time, Logistic Regression narrowly edges out Random Forest on Validation AUC (**0.884** vs 0.883), so it's the one selected as the best classical model and saved to `models/classical_model.pkl`.
 
-**Classical Models Comparison:**
-Random Forest and Logistic Regression achieved nearly identical test accuracies (0.722 vs 0.730). However, Random Forest achieved higher validation AUC (0.807 vs 0.799), demonstrating superior class separation. Random Forest is selected as the best classical model.
+We now compare the winning classical model against the neural network on the test set:
 
-**Classical vs Neural Network:**
-The Neural Network achieved higher accuracy (0.794 vs 0.722) but with critically different trade-offs:
-- **Neural Network:** High precision (0.645) but very low recall (0.324). It "plays safe" – when it predicts >50K, it's often correct, but it misses 67.6% of high-income individuals.
-- **Random Forest:** Balanced metrics. Catches 75.3% of high-income individuals (recall) while maintaining reasonable precision (0.453).
+| Model | Accuracy | Precision | Recall | F1-Score | ROC-AUC |
+|-------|----------|-----------|--------|----------|---------|
+| Logistic Regression | 0.795 | 0.548 | 0.843 | 0.664 | 0.894 |
+| Neural Network | 0.844 | 0.710 | 0.598 | 0.649 | 0.892 |
 
-**Validation Loss Behavior:**
-The neural network's validation loss plateaued around epoch 34, after which further training provided diminishing returns. The training set of 26,048 rows was sufficient for basic convergence but insufficient for the model to learn complex non-linear patterns that would justify its architectural complexity.
+_Note #1:_ **Why is Logistic Regression winning this time, and not Random Forest or the Neural Network?** Once the categorical features (especially `marital_status`) were actually available to the model, a simpler linear model turned out to separate the classes almost as well as the more complex ones - and slightly better on AUC. The Neural Network still wins on raw Accuracy (0.844 vs 0.795) and Precision (0.710 vs 0.548), but its Recall is much lower (0.598 vs 0.843), meaning it misses a lot more of the actual >50K earners. Logistic Regression catches far more of them, which matters more for a task like this.
 
-**Why Random Forest Wins:**
-On tabular datasets of this size, classical algorithms like Random Forest consistently outperform simple neural networks. This is well-established empirically. The added complexity of deep learning is not justified by measurable performance gains. Random Forest achieves the best balance of recall, precision, and F1-score.
+_Note #2:_ This result flips what we found in our earlier run, where Random Forest came out on top. It's a good reminder of how much a preprocessing bug can quietly skew which model looks "best" - the ranking of models isn't fixed, it depends heavily on whether the features actually going into them are meaningful in the first place.
+
+**Does the loss curve suggest the neural network had enough data to learn well?** The training history shows a steady decline in both training and validation loss, with the most rapid improvement happening before epoch 40, and validation accuracy climbing to around 0.82-0.83 by epoch 100. The curves don't show obvious divergence, so the model isn't wildly overfitting, but it also isn't clearly outperforming the much simpler Logistic Regression - which is really the more interesting finding here.
+
+As we see, the added complexity of the Neural Network still isn't clearly justified - Logistic Regression achieves a marginally higher AUC (0.894 vs 0.892) with a much simpler, more interpretable model, and a considerably better Recall.
 
 ---
 
 ## 7. Best Model Designation
 
-**Best Model:** Random Forest  
-**Location:** `models/best_model.pkl`
+The best model selected is **Logistic Regression**, saved in `models/best_model.pkl`.
 
-**Justification:**
-- **Highest ROC-AUC (0.815):** Best class separation and discrimination
-- **Highest Recall (0.753):** Correctly identifies ~75% of high-income individuals
-- **Best F1-Score (0.565):** Best balance of precision and recall
-- **Simpler than Neural Network:** Easier to interpret, deploy, and maintain
-- **Empirically validated:** Consistent with the principle that tree-based models outperform neural networks on small-to-medium tabular datasets
+**_Justification summary_**:
+
+- Highest ROC-AUC (0.894), narrowly ahead of both Random Forest (0.883) and the Neural Network (0.892)
+- Highest Recall (0.843), meaning it correctly identifies ~84% of high-income individuals - by far the best of the three models on this metric
+- Simple, interpretable, and considerably cheaper to train and deploy than the Neural Network
+
+Looking at the model's own feature importances (absolute coefficient magnitude), the top 5 features are:
+
+| Feature | Importance (abs. coefficient) |
+|---------|-------------------------------|
+| `hours_log` | 2.416 |
+| `hours_per_week` | 1.883 |
+| `marital_status_Married-civ-spouse` | 1.174 |
+| `education_num` | 0.591 |
+| `age` | 0.464 |
+
+It's worth pointing out that `marital_status_Married-civ-spouse` shows up as the 3rd most important feature here - this is a categorical feature that didn't even exist in the model before the encoding fix, so this is fairly direct evidence that the fix mattered, and not just a number moving around on a table.
 
 This model is carried forward to Stage 2.
 
@@ -225,7 +216,7 @@ This model is carried forward to Stage 2.
 
 The conversational AI agent is built on top of the best model from Stage 1. It can:
 - **Answer domain questions** using a knowledge base (RAG system)
-- **Make income predictions** using the Random Forest model
+- **Make income predictions** using the Logistic Regression model
 - **Explore the dataset** with statistical and CSV lookup tools
 - **Maintain conversation memory** within sessions
 
@@ -303,15 +294,15 @@ MMR prevents the agent from retrieving repetitive paragraphs from a single docum
 
 ## 11. Model Integration
 
-The Random Forest classifier from Stage 1 is wrapped as a LangChain tool. The preprocessing pipeline replicates Stage 1 exactly:
+The Logistic Regression classifier from Stage 1 (ROC-AUC: 0.894, Recall: 0.843) is wrapped as a LangChain tool. The preprocessing pipeline replicates Stage 1 exactly:
 
 1. Build single-row DataFrame from input JSON, fill missing keys with NaN
-2. Coerce values to numeric (categorical strings → NaN → mode imputation)
+2. Coerce numeric fields to numeric (categorical strings are left as-is, not converted)
 3. Apply one-hot encoding for categorical variables
-4. Impute numeric missing values using training-set medians
+4. Impute any remaining missing numeric values
 5. Apply feature engineering (`capital_diff`, `hours_log`)
-6. Scale using saved `scaler.pkl`
-7. Predict using `best_model.pkl`
+6. Reindex columns against the saved training-time column order (`models/feature_columns.pkl`), filling any missing one-hot columns with 0
+7. Scale using saved `scaler.pkl` and predict using `best_model.pkl`
 
 **Tool Input:** JSON string with any subset of 14 UCI Adult Census features  
 **Tool Output:** Prediction label (>50K or ≤50K) + probability
@@ -339,8 +330,8 @@ Agent: Several factors typically influence whether a person earns more than $50K
 User:  "Would a 52-year-old with 16 years of education and a capital gain
         of 15000 earn more than $50K?"
 
-Agent: Based on the trained Random Forest model, this person is predicted to
-       earn more than $50K, with a probability of 94.0%.
+Agent: Based on the trained Logistic Regression model, this person is predicted to
+       earn more than $50K.
 ```
 
 ### (c) Memory and Follow-up Turn
@@ -349,8 +340,7 @@ Agent: Based on the trained Random Forest model, this person is predicted to
 User:  "What if they only had 9 years of education instead?"
 
 Agent: With only 9 years of education (and keeping all other attributes the same),
-       the model now predicts ≤$50K, with a probability of earning above $50K
-       dropping to 39.6%.
+       the model now predicts a lower probability of earning above $50K.
 ```
 
 ### (d) Dataset Statistics Response
@@ -420,12 +410,13 @@ python model_main.py
 ```
 
 This generates:
-- `models/best_model.pkl` (Random Forest classifier)
+- `models/best_model.pkl` (Logistic Regression classifier)
 - `models/scaler.pkl` (preprocessing scaler)
-- `models/classical_model.pkl` (Logistic Regression for comparison)
+- `models/classical_model.pkl` (best classical model - Logistic Regression)
+- `models/feature_columns.pkl` (training-time column order, used for consistent predictions)
 - `models/neural_network.pt` (neural network for comparison)
 - `models/confusion_matrix_*.png` (visualization)
-- `models/loss_curves_*.png` (neural network training curves)
+- `models/loss_curves_neural_network.png` (neural network training curves)
 - `models/pca_scree.png` (PCA variance plot)
 - `models/pca_2d.png` (PCA 2D projection)
 
@@ -497,7 +488,7 @@ print(response.json()["response"])
 
 ```json
 {
-  "response": "Based on the trained Random Forest model, this person is predicted to earn more than $50K, with a probability of 94.0%."
+  "response": "Based on the trained Logistic Regression model, this person is predicted to earn more than $50K."
 }
 ```
 
@@ -511,12 +502,13 @@ print(response.json()["response"])
 │   ├── documents/                     (RAG knowledge base - 11 PDFs + TXT)
 │   └── vector_store/                  (ChromaDB embeddings)
 ├── models/
-│   ├── best_model.pkl                 (Random Forest classifier)
+│   ├── best_model.pkl                 (Logistic Regression classifier)
 │   ├── scaler.pkl                     (StandardScaler)
-│   ├── classical_model.pkl            (Logistic Regression)
+│   ├── classical_model.pkl            (Logistic Regression - best classical model)
+│   ├── feature_columns.pkl            (training-time column order)
 │   ├── neural_network.pt              (PyTorch neural network)
 │   ├── confusion_matrix_*.png         (Evaluation visualizations)
-│   ├── loss_curves_*.png              (Training curves)
+│   ├── loss_curves_neural_network.png (Training curves)
 │   ├── pca_scree.png                  (PCA variance plot)
 │   └── pca_2d.png                     (PCA 2D projection)
 ├── src/
@@ -541,15 +533,17 @@ print(response.json()["response"])
 
 1. **Recursion Limit:** The agent uses LangGraph's default recursion limit. For complex multi-step reasoning, consider setting `max_iterations` explicitly.
 
-2. **Hyperparameter Tuning:** Random Forest uses fixed hyperparameters (`n_estimators=100`, `max_depth=10`). RandomizedSearchCV could explore optimal combinations and potentially improve ROC-AUC beyond 0.815.
+2. **Hyperparameter Tuning:** Logistic Regression and Random Forest both use fixed hyperparameters. RandomizedSearchCV could explore optimal combinations and potentially push ROC-AUC beyond the current 0.894.
 
-3. **Neural Network Depth:** The current architecture (2 hidden layers, 64→32 units) is intentionally shallow, matching the tabular dataset's scale. Deeper architectures were not explored, as the Model Comparison (Section 6) already demonstrates diminishing returns from added complexity on this dataset size.
+3. **Neural Network Depth:** The current architecture (2 hidden layers, 64→32 units) is intentionally shallow. Given that Logistic Regression already matches or beats the Neural Network on AUC after the categorical encoding fix, a deeper architecture wasn't pursued - the added complexity doesn't seem justified by the data at this scale.
+
+4. **PCA Interpretability:** With 102 features after one-hot encoding, individual component loadings are harder to interpret one by one compared to the smaller numeric-only feature set. Feature importances from the trained model (Section 7) are a more direct way to understand what's driving predictions at this feature count.
 
 ---
 
 ## Summary
 
-**Stage 1** builds a complete ML pipeline with proper preprocessing, feature engineering, and rigorous model comparison. Random Forest emerges as the best model for this income prediction task.
+**Stage 1** builds a complete ML pipeline with proper preprocessing (including working categorical encoding), feature engineering, and rigorous model comparison. Logistic Regression emerges as the best model for this income prediction task - a bit of a surprise, but a good illustration of how much a preprocessing fix can change which model actually performs best.
 
 **Stage 2** leverages this model within a conversational AI agent, combining it with a knowledge base (RAG) to create an interactive system that answers questions, makes predictions, and explores the dataset.
 

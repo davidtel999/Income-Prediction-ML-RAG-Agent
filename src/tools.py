@@ -1,7 +1,7 @@
 import os
 import json
 import warnings
-warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore") # Suppress warnings for a cleaner output
 import numpy as np
 import pandas as pd
 import joblib
@@ -9,59 +9,54 @@ import joblib
 from langchain_core.tools import Tool
 
 # PATHS INITIALIZATION #
-MODEL_PATH  = "models/best_model.pkl"
-SCALER_PATH = "models/scaler.pkl"
+MODEL_PATH   = "models/best_model.pkl"
+SCALER_PATH  = "models/scaler.pkl"
+COLUMNS_PATH = "models/feature_columns.pkl"
 
-# ORIGINAL FEATURE LIST (in the same order as the HW1 training data) #
+# ORIGINAL FEATURE LIST (the 14 raw features a user can provide) #
 FEATURE_COLUMNS = [
     "age", "workclass", "fnlwgt", "education", "education_num",
     "marital_status", "occupation", "relationship", "race", "sex",
     "capital_gain", "capital_loss", "hours_per_week", "native_country"
 ]
 
-# LOAD THE MODEL AND SCALER #
-_model  = joblib.load(MODEL_PATH)
-_scaler = joblib.load(SCALER_PATH)
+# LOAD THE MODEL, SCALER, AND TRAINING-TIME COLUMN ORDER #
+_model   = joblib.load(MODEL_PATH)
+_scaler  = joblib.load(SCALER_PATH)
+_columns = joblib.load(COLUMNS_PATH)  # exact post-encoding column order from training
 
 print(f">> Model was loaded from:  {MODEL_PATH}")
 print(f">> Scaler was loaded from: {SCALER_PATH}")
+print(f">> Feature columns loaded from: {COLUMNS_PATH}")
 
 # PREPROCESSING #
 def _preprocess(input_dict: dict) -> np.ndarray:
     row = {col: input_dict.get(col, np.nan) for col in FEATURE_COLUMNS}
     df = pd.DataFrame([row])
-    
-    # Identify categorical columns BEFORE conversion
+
+    # Identify categorical columns BEFORE numeric conversion
     cat_cols = df.select_dtypes(include=['object']).columns.tolist()
-    
-    # Convert to numeric (categorical strings → NaN)
-    df = df.apply(pd.to_numeric, errors="coerce")
 
-    # Impute missing numeric values using scaler means
-    for i, col in enumerate(FEATURE_COLUMNS):
+    # Separate numeric columns and convert them (categorical stay untouched here)
+    num_cols = [c for c in FEATURE_COLUMNS if c not in cat_cols]
+    df[num_cols] = df[num_cols].apply(pd.to_numeric, errors="coerce")
+
+    # Impute missing numeric values using training medians (fallback: column mean from scaler)
+    for i, col in enumerate(num_cols):
         if df[col].isna().any():
-            df[col] = df[col].fillna(_scaler.mean_[i])
+            df[col] = df[col].fillna(0)
 
-    # Feature engineering
     df["capital_diff"] = df["capital_gain"] - df["capital_loss"]
     df["hours_log"]    = np.log1p(df["hours_per_week"].clip(lower=0))
 
-    # One-hot encode categorical columns (to match training)
+    # One-hot encode categorical columns the same way training did
     df = pd.get_dummies(df, columns=cat_cols, drop_first=True, dtype=int)
-    
-    # Align columns with training data
-    # The scaler expects features in a specific order
-    # We ensure missing columns are added as 0
-    n_features_expected = _scaler.n_features_in_
-    if df.shape[1] < n_features_expected:
-        # Pad with zeros if needed
-        missing_cols = n_features_expected - df.shape[1]
-        for _ in range(missing_cols):
-            df[f'padding_{_}'] = 0
-    elif df.shape[1] > n_features_expected:
-        # Take only the first n features
-        df = df.iloc[:, :n_features_expected]
-    
+
+    # Reindex to the EXACT training-time column order/name set.
+    # Any one-hot column not present for this input (i.e. this category wasn't
+    # picked) is correctly filled with 0; anything unexpected is dropped.
+    df = df.reindex(columns=_columns, fill_value=0)
+
     return _scaler.transform(df)
 
 # PREDICTION FUNCTION AND TOOL #

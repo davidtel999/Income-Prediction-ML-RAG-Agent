@@ -101,6 +101,7 @@ def main():
     
     # Convert to numpy
     feature_names = X_train.columns.tolist()
+    joblib.dump(feature_names, 'models/feature_columns.pkl')
     X_train_np, X_val_np, X_test_np = X_train.values, X_val.values, X_test.values
     y_train_np, y_val_np, y_test_np = y_train.values, y_val.values, y_test.values
     
@@ -140,7 +141,7 @@ def main():
     models = {best_classical_name: best_classical, "Neural Network": nn_model}
     run_evaluation(models, X_test_np, y_test_np, feature_names=feature_names)
     
-    print("\nDone! Ready for agent deployment.")
+    print("\nReady for agent integration.")
 
 
 if __name__ == "__main__":

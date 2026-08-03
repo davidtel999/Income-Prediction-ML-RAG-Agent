@@ -29,25 +29,32 @@ def impute_missing(X_train, X_val, X_test):
     X_val   = X_val.replace(["?","n/a","N/A","", " ", "NA", "null", "NULL"], np.nan)
     X_test  = X_test.replace(["?","n/a","N/A","", " ", "NA", "null", "NULL"], np.nan)
 
-    # Identify categorical columns BEFORE conversion to preserve them
+   # Identify categorical columns before conversion
     cat_cols = X_train.select_dtypes(include=['object']).columns.tolist()
-    
-    # Converting everything possible to numeric values (non-convertible became NaN)
-    X_train = X_train.apply(pd.to_numeric, errors="coerce")
-    X_val   = X_val.apply(pd.to_numeric, errors="coerce")
-    X_test  = X_test.apply(pd.to_numeric, errors="coerce")
+    num_cols = [c for c in X_train.columns if c not in cat_cols]
 
-    # Get numeric columns (all columns should be numeric now)
-    num_cols = X_train.select_dtypes(include=[np.number]).columns.tolist()
+    # Only coerce the numeric columns - categorical columns stay as strings
+    # so encode_categorical() has real values to one-hot encode later
+    X_train[num_cols] = X_train[num_cols].apply(pd.to_numeric, errors="coerce")
+    X_val[num_cols]   = X_val[num_cols].apply(pd.to_numeric, errors="coerce")
+    X_test[num_cols]  = X_test[num_cols].apply(pd.to_numeric, errors="coerce")
 
     # Fill numeric with medians (computed ONLY from the training set)
     for col in num_cols:
         median_val = X_train[col].median()
-        if pd.isna(median_val):  # If all values are NaN, use 0
+        if pd.isna(median_val):
             median_val = 0
         X_train[col] = X_train[col].fillna(median_val)
         X_val[col]   = X_val[col].fillna(median_val)
         X_test[col]  = X_test[col].fillna(median_val)
+
+    # Fill categorical with mode (computed ONLY from the training set)
+    for col in cat_cols:
+        mode_series = X_train[col].mode()
+        mode_val = mode_series[0] if len(mode_series) > 0 else "Unknown"
+        X_train[col] = X_train[col].fillna(mode_val)
+        X_val[col]   = X_val[col].fillna(mode_val)
+        X_test[col]  = X_test[col].fillna(mode_val)
 
     return X_train, X_val, X_test, num_cols, cat_cols
 
