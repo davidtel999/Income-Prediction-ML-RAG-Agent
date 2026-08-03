@@ -81,9 +81,9 @@ All preprocessing steps were applied strictly in the order: **Split -> Impute ->
 ### STEP 1: Data Splitting and Stratification
 
 The dataset was split 80/10/10 (train/validation/test) using stratified splitting to preserve class distribution:
-- **Training set (80%):** 26,048 rows — used to fit preprocessing and train models
-- **Validation set (10%):** 3,256 rows — used for early stopping and model selection
-- **Test set (10%):** 3,257 rows — used only for final evaluation
+- **Training set (80%):** 26,048 rows – used to fit preprocessing and train models
+- **Validation set (10%):** 3,256 rows – used for early stopping and model selection
+- **Test set (10%):** 3,257 rows – used only for final evaluation
 
 Stratification ensures all three partitions maintain the 75.9%/24.1% class ratio.
 
@@ -93,7 +93,8 @@ Raw data contained multiple missing value representations: "?", "n/a", "N/A", ""
 
 **Numeric columns:** Filled with the **median** of the training set (robust to outliers).  
 **Categorical columns:** Filled with the **mode** of the training set. If all values missing, filled with "Unknown".
-**Critical fix:** Previous implementation used `pd.to_numeric(errors='coerce')` which converted all categorical columns to NaN and filled with 0, effectively **discarding 8 categorical features**. This version preserves categorical data and encodes it properly (see Step 4).
+
+**Note:** An earlier implementation used `pd.to_numeric(errors='coerce')` which converted all categorical columns to NaN and filled with 0, effectively discarding 8 categorical features. This version preserves categorical data and encodes it properly (see Step 4).
 
 ### STEP 3: Outlier Handling Using IQR Clipping
 
@@ -122,7 +123,7 @@ This **preserves all categorical information** that was previously lost. The enc
 StandardScaler applied to all numeric and one-hot encoded features, transforming to zero mean and unit variance:
 - Fitted on training set only
 - Applied identically to validation and test sets
-- Scaler saved as `models/scaler.pkl` for use in production (Homework 2)
+- Scaler saved as `models/scaler.pkl` for use in Stage 2
 
 ---
 
@@ -193,7 +194,7 @@ Random Forest and Logistic Regression achieved nearly identical test accuracies 
 
 **Classical vs Neural Network:**
 The Neural Network achieved higher accuracy (0.794 vs 0.722) but with critically different trade-offs:
-- **Neural Network:** High precision (0.645) but very low recall (0.324). It "plays safe" — when it predicts >50K, it's often correct, but it misses 67.6% of high-income individuals.
+- **Neural Network:** High precision (0.645) but very low recall (0.324). It "plays safe" – when it predicts >50K, it's often correct, but it misses 67.6% of high-income individuals.
 - **Random Forest:** Balanced metrics. Catches 75.3% of high-income individuals (recall) while maintaining reasonable precision (0.453).
 
 **Validation Loss Behavior:**
@@ -216,11 +217,11 @@ On tabular datasets of this size, classical algorithms like Random Forest consis
 - **Simpler than Neural Network:** Easier to interpret, deploy, and maintain
 - **Empirically validated:** Consistent with the principle that tree-based models outperform neural networks on small-to-medium tabular datasets
 
-This model is carried forward to Homework 2 and the Final Project.
+This model is carried forward to Stage 2.
 
 ---
 
-## 8. Agent System Overview (Homework 2)
+## 8. Agent System Overview
 
 The conversational AI agent is built on top of the best model from Stage 1. It can:
 - **Answer domain questions** using a knowledge base (RAG system)
@@ -386,8 +387,8 @@ Agent: There are 1,120 individuals in the dataset who work more than 60 hours
 **STEP 1: Clone the Repository**
 
 ```bash
-git clone https://github.com/yourusername/income-prediction-system.git
-cd income-prediction-system
+git clone https://github.com/davidtel999/Income-Prediction-ML-RAG-Agent.git
+cd Income-Prediction-ML-RAG-Agent
 ```
 
 **STEP 2: Create and activate virtual environment**
@@ -521,8 +522,9 @@ print(response.json()["response"])
 ├── src/
 │   ├── preprocessing.py               (Cleaning, encoding, scaling)
 │   ├── train_classical.py             (Logistic Regression, Random Forest)
-│   ├── train_neural.py                (PyTorch neural network)
+│   ├── train_neural.py                (PyTorch neural network + activation comparison)
 │   ├── evaluate.py                    (Metrics, confusion matrices, loss curves)
+│   ├── pca_analysis.py                (Standalone PCA exploratory script)
 │   ├── rag.py                         (Knowledge base & retrieval)
 │   ├── agent.py                       (LangGraph agent logic)
 │   ├── tools.py                       (Prediction, stats, lookup tools)
@@ -537,15 +539,11 @@ print(response.json()["response"])
 
 ## Known Limitations & Future Work
 
-1. **Categorical Feature Encoding:** Previous implementation lost categorical features through improper preprocessing. This version applies one-hot encoding, significantly increasing feature count but preserving information.
+1. **Recursion Limit:** The agent uses LangGraph's default recursion limit. For complex multi-step reasoning, consider setting `max_iterations` explicitly.
 
-2. **Feature Importance Alignment:** The professor noted the importance of documenting how feature importances from Random Forest align with PCA loadings. Both identify work hours, education, and age as dominant features, confirming their predictive value.
+2. **Hyperparameter Tuning:** Random Forest uses fixed hyperparameters (`n_estimators=100`, `max_depth=10`). RandomizedSearchCV could explore optimal combinations and potentially improve ROC-AUC beyond 0.815.
 
-3. **Recursion Limit:** The agent uses LangGraph's default recursion limit. For complex multi-step reasoning, consider setting `max_iterations` explicitly.
-
-4. **Activation Function Experiments:** The neural network uses ReLU with dropout. Future work should systematically compare Leaky ReLU, ELU, and Tanh variants, documenting effects on convergence and validation performance.
-
-5. **Hyperparameter Tuning:** Random Forest uses fixed hyperparameters (`n_estimators=100`, `max_depth=10`). RandomizedSearchCV could explore optimal combinations and potentially improve ROC-AUC beyond 0.815.
+3. **Neural Network Depth:** The current architecture (2 hidden layers, 64→32 units) is intentionally shallow, matching the tabular dataset's scale. Deeper architectures were not explored, as the Model Comparison (Section 6) already demonstrates diminishing returns from added complexity on this dataset size.
 
 ---
 
