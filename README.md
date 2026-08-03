@@ -1,6 +1,6 @@
 # Income Prediction: ML Pipeline to RAG-Powered Conversational Agent
 
-A complete end-to-end machine learning and AI system. **Stage 1** trains and compares classical ML and neural network models for income prediction. **Stage 2** wraps the best model in a conversational AI agent that answers domain questions, makes predictions, and explores the dataset.
+A complete end-to-end machine learning and AI system. **"Stage 1"** trains and compares classical ML and neural network models for income prediction. **"Stage 2"** wraps the best model in a conversational AI agent that answers domain questions, makes predictions, and explores the dataset.
 
 ---
 
