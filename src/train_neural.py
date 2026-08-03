@@ -143,7 +143,6 @@ def compare_activations(X_train, y_train, X_val, y_val, epochs=100, lr=0.001):
             loss = criterion(model(X_train_t), y_train_t)
             loss.backward()
             optimizer.step()
-            optimizer.zero_grad()
             model.eval()
             with torch.no_grad():
                 val_loss = criterion(model(X_val_t), y_val_t).item()

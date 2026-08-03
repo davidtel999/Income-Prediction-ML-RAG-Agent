@@ -1,7 +1,6 @@
 """
 Model Development Pipeline
 Trains classical ML and neural network models, compares them, and saves the best.
-
 Run with:   python model_main.py
 Output:     models/best_model.pkl, models/scaler.pkl, visualizations as PNG
 """
@@ -16,8 +15,7 @@ from sklearn.decomposition import PCA
 from src.preprocessing import split_data, impute_missing, treat_outliers, encode_categorical, add_features, scale_data
 from src.train_classical import compare_models
 from src.train_neural import train_neural_network, save_model, compare_activations
-from src.evaluate import run_evaluation, plot_loss_curves
-
+from src.evaluate import run_evaluation
 
 def run_pca(X_train, y_train):
     """Perform PCA analysis and generate visualizations."""
@@ -116,7 +114,7 @@ def main():
     print()
     
     print("Training neural network...")
-    nn_model, train_losses, val_losses = train_neural_network(
+    nn_model, _ = train_neural_network(
         X_train_np, y_train_np,
         X_val_np, y_val_np,
         X_test_np, y_test_np,
@@ -124,7 +122,7 @@ def main():
     )
     print()
     
-    # Test activation functions (optional, satisfies professor feedback)
+    # Compare activation functions
     print("Comparing activation functions...")
     compare_activations(X_train_np, y_train_np, X_val_np, y_val_np, epochs=100, lr=0.001)
     print()
