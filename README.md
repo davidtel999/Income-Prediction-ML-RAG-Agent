@@ -370,7 +370,7 @@ Agent: There are 1,120 individuals in the dataset who work more than 60 hours
 
 ### Requirements
 
-- Python 3.8 or higher
+- Python 3.8+
 - OpenAI API key (for Stage 2 only)
 - Git
 
