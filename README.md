@@ -147,7 +147,7 @@ Two new features were created and added alongside original columns:
 
 ## 5. PCA Insights
 
-In an early version of the pipeline, the categorical encoding was problematic, keeping only the cleaned-up numeric features and losing potential information from the rest. This actually led to another model being assigned the label of "best model", which was Random Forest - with relevant details being shown in _Part 6._. After one-hot encoding all 8 categorical variables, we ended up with the 102 columns that were mentioned before.
+In an early version of the pipeline, the categorical encoding was problematic, keeping only the cleaned-up numeric features and losing potential information from the rest. This actually led to another model being assigned the label of "best model", which was Random Forest - with relevant details being shown in _Part 6_. After one-hot encoding all 8 categorical variables, we ended up with the 102 columns that were mentioned before.
 
 The scree plot shows that with this many features, no few components dominate the variance anymore. We now need **76 components** to reach the 90% variance threshold, which is a big jump from the few components we needed before the encoding fix. This actually makes sense: instead of a few continuous variables like `hours_per_week` and `education_num` carrying most of the signal, we now have dozens of one-hot columns (individual occupation types, native countries, etc), and each one only contributes a tiny sliver of variance on its own.
 
