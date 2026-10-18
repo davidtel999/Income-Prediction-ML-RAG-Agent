@@ -1,6 +1,6 @@
 # Income Prediction: ML Pipeline to RAG-Powered Conversational Agent
 
-A complete end-to-end machine learning and AI system. **Stage 1** trains and compares classical ML and neural network models for income prediction. **Stage 2** wraps the best model in a conversational AI agent that answers domain questions, makes predictions, and explores the dataset.
+A complete end-to-end machine learning and AI system. **Stage 1** trains and compares classical ML and neural network models for income prediction. **Stage 2** wraps the best of these models in a conversational AI agent that answers domain questions, makes predictions, and explores the dataset.
 
 ---
 
@@ -20,6 +20,9 @@ A complete end-to-end machine learning and AI system. **Stage 1** trains and com
 12. [Example Conversations](#12-example-conversations)
 13. [Installation & Execution](#13-installation--execution)
 14. [Example API Calls](#14-example-api-calls)
+15. [Project Structure](#15-project-structure)
+16. [Known Limitations & Future Work](#16-known-limitations--future-work)
+17. [Summary](#17-summary)
 
 ---
 
@@ -31,7 +34,7 @@ The dataset used in this project is called _UCI Adult Census Data_. It falls wit
 
 **Problem Type:** Binary Classification
 
-**Target Variable:** `income` (≤50K or >50K)
+**Target Variable:** `income` (=<50K or >50K)
 
 ---
 
@@ -60,13 +63,13 @@ The dataset used in this project is called _UCI Adult Census Data_. It falls wit
 | 12 | `capital_loss` | Continuous | Capital losses |
 | 13 | `hours_per_week` | Continuous | Weekly work hours |
 | 14 | `native_country` | Categorical | Country of origin (42 categories) |
-| 15 | `income` | **Target** | ≤50K or >50K |
+| 15 | `income` | **Target** | =<50K or >50K |
 
 **Target Distribution:**
 
 | Class | Count | Percentage |
 |-------|-------|------------|
-| ≤50K | 24,720 | 75.9% |
+| =<50K | 24,720 | 75.9% |
 | >50K | 7,841 | 24.1% |
 | Total | 32,561 | 100% |
 
@@ -116,7 +119,7 @@ Values outside these bounds were **clipped** (Winsorized) rather than removed, p
 - `native_country` (42 categories) → 41 binary columns
 - `sex` (binary) → kept as 0/1
 
-After encoding, the feature set grows from 14 raw columns to **102 columns**. This preserves categorical information that a naive numeric conversion would otherwise discard. The encoding was fit on the training set; unseen categories in validation/test sets are represented as all zeros.
+After encoding, the feature set grows from 14 raw columns to **102 columns**. This preserves categorical information that a naϊve numeric conversion would otherwise discard. The encoding was fit on the training set; unseen categories in validation/test sets are represented as all zeros.
 
 ### STEP 5: Feature Scaling
 
@@ -144,14 +147,14 @@ Two new features were created and added alongside original columns:
 
 ## 5. PCA Insights
 
-Once we fixed the categorical encoding, our feature space grew a lot - from a handful of columns to **102 columns** after one-hot encoding all 8 categorical variables. This changes the PCA picture quite a bit compared to what we saw with a numeric-only feature set.
+In an early version of the pipeline, the categorical encoding was problematic, keeping only the cleaned-up numeric features and losing potential information from the rest. This actually led to another model being assigned the label of "best model", which was Random Forest - with relevant details being shown on _Part 6._. Once one-hot encoding all 8 categorical variables, our feature space grew a lot, and we ended up with the 102 columns we talked about before.
 
-The scree plot shows that with this many features, no small handful of components dominates the variance anymore. We now need **76 components** to reach the 90% variance threshold, which is a big jump from the ~4-6 components we needed before the encoding fix. This actually makes sense: instead of a few continuous variables like `hours_per_week` and `education_num` carrying most of the signal, we now have dozens of one-hot columns (individual occupation types, native countries, etc.), and each one only contributes a tiny sliver of variance on its own.
+The scree plot shows that with this many features, no small handful of components dominates the variance anymore. We now need **76 components** to reach the 90% variance threshold, which is a big jump from the few components we needed before the encoding fix. This actually makes sense: instead of a few continuous variables like `hours_per_week` and `education_num` carrying most of the signal, we now have dozens of one-hot columns (individual occupation types, native countries, etc), and each one only contributes a tiny sliver of variance on its own.
 
-This doesn't mean PCA became useless here - it just means the categorical features carry a lot of small, spread-out signal rather than a few dominant directions. The 2D scatter plot (PC1 vs PC2) still shows the ≤50K and >50K classes overlapping quite a bit, which confirms what we already suspected: this isn't something a simple linear cut on two axes can separate cleanly.
+This doesn't mean PCA became useless here - it just means the categorical features carry a lot of small, spread-out signal rather than a few dominant directions. The 2D scatter plot (PC1 vs PC2) still shows the =<50K and >50K classes overlapping a bit, which confirms what we already suspected: this isn't something a simple linear division on two axes can separate cleanly.
 
 **2D Scatter Plot (PC1 vs PC2):**
-- **Class Overlap:** Blue (≤50K) and red (>50K) points heavily overlap, especially in the center.
+- **Class Overlap:** Blue (=<50K) and red (>50K) points heavily overlap, especially in the center.
 - **Vertical Banding:** Distinct stripes visible, reflecting the categorical feature structure (education level, occupation, etc. create discrete groupings).
 
 _Note:_ With 102 columns, individual PCA loadings stop being very interpretable one by one, so we didn't try to pick out "top 5 features per component" this time the way we could before. For that, the model's own feature importances (see Section 7) give a much clearer picture of what's actually driving predictions.
@@ -167,7 +170,7 @@ _Note:_ With 102 columns, individual PCA loadings stop being very interpretable 
 | Logistic Regression | 0.792 | 0.802 | 0.884 | 0.795 |
 | Random Forest | 0.788 | 0.787 | 0.883 | 0.783 |
 
-Honestly, this was a bit of a surprise compared to our earlier run with numeric-only features, where Random Forest had come out ahead. With the categorical features actually being used this time, both classical models jumped noticeably in performance. And this time, Logistic Regression narrowly edges out Random Forest on Validation AUC (**0.884** vs 0.883), so it's the one selected as the best classical model and saved to `models/classical_model.pkl`.
+With the categorical features actually being used this time, both classical models jumped noticeably in performance. And this time, Logistic Regression narrowly edges out Random Forest on Validation AUC (**0.884** vs 0.883), so it's the one selected as the best classical model and saved to `models/classical_model.pkl`.
 
 We now compare the winning classical model against the neural network on the test set:
 
@@ -305,7 +308,7 @@ The Logistic Regression classifier from Stage 1 (ROC-AUC: 0.894, Recall: 0.843) 
 7. Scale using saved `scaler.pkl` and predict using `best_model.pkl`
 
 **Tool Input:** JSON string with any subset of 14 UCI Adult Census features  
-**Tool Output:** Prediction label (>50K or ≤50K) + probability
+**Tool Output:** Prediction label (>50K or =<50K) + probability
 
 **Categorical Feature Handling:** The LLM acts as an intelligent translator, mapping conversational descriptions (e.g., "electrical engineer" → `occupation_Exec-managerial`) into correct numeric features before calling the prediction tool.
 
@@ -369,7 +372,7 @@ Agent: There are 1,120 individuals in the dataset who work more than 60 hours
 ### Requirements
 
 - Python 3.8 or higher
-- OpenAI API key (for Stage 2 agent only)
+- OpenAI API key (for Stage 2 only)
 - Git
 
 ### Stage 1: Model Training
@@ -384,17 +387,17 @@ cd Income-Prediction-ML-RAG-Agent
 **STEP 2: Create and activate virtual environment**
 
 ```bash
-python -m venv venv
+python -m venv .venv
 ```
 
 **Windows:**
 ```bash
-venv\Scripts\activate
+.venv\Scripts\activate
 ```
 
 **Mac/Linux:**
 ```bash
-source venv/bin/activate
+source .venv/bin/activate
 ```
 
 **STEP 3: Install dependencies**
@@ -494,27 +497,27 @@ print(response.json()["response"])
 
 ---
 
-## Project Structure
+## 15. Project Structure
 
 ```
 ├── data/
 │   ├── dataset.csv                    (UCI Adult Census raw data)
-│   ├── documents/                     (RAG knowledge base - 11 PDFs + TXT)
+│   ├── documents/                     (RAG knowledge base)
 │   └── vector_store/                  (ChromaDB embeddings)
 ├── models/
-│   ├── best_model.pkl                 (Logistic Regression classifier)
+│   ├── best_model.pkl                 (The winning classifier: Logistic Regression)
 │   ├── scaler.pkl                     (StandardScaler)
-│   ├── classical_model.pkl            (Logistic Regression - best classical model)
-│   ├── feature_columns.pkl            (training-time column order)
-│   ├── neural_network.pt              (PyTorch neural network)
-│   ├── confusion_matrix_*.png         (Evaluation visualizations)
+│   ├── classical_model.pkl            (The winning classical model: Logistic Regression)
+│   ├── feature_columns.pkl            (Training-time columns' order)
+│   ├── neural_network.pt              (Neural network)
+│   ├── confusion_matrix_*.png         (Evaluation visuals)
 │   ├── loss_curves_neural_network.png (Training curves)
 │   ├── pca_scree.png                  (PCA variance plot)
 │   └── pca_2d.png                     (PCA 2D projection)
 ├── src/
 │   ├── preprocessing.py               (Cleaning, encoding, scaling)
 │   ├── train_classical.py             (Logistic Regression, Random Forest)
-│   ├── train_neural.py                (PyTorch neural network + activation comparison)
+│   ├── train_neural.py                (Neural network + activation comparison)
 │   ├── evaluate.py                    (Metrics, confusion matrices, loss curves)
 │   ├── pca_analysis.py                (Standalone PCA exploratory script)
 │   ├── rag.py                         (Knowledge base & retrieval)
@@ -523,13 +526,13 @@ print(response.json()["response"])
 │   └── api.py                         (FastAPI endpoints)
 ├── model_main.py                      (Stage 1: Training pipeline)
 ├── agent_main.py                      (Stage 2: Agent server)
-├── requirements.txt                   (Pinned dependencies)
+├── requirements.txt                   (Dependencies)
 └── README.md                          (Current file)
 ```
 
 ---
 
-## Known Limitations & Future Work
+## 16. Known Limitations & Future Work
 
 1. **Recursion Limit:** The agent uses LangGraph's default recursion limit. For complex multi-step reasoning, consider setting `max_iterations` explicitly.
 
@@ -541,10 +544,10 @@ print(response.json()["response"])
 
 ---
 
-## Summary
+## 17. Summary
 
-**Stage 1** builds a complete ML pipeline with proper preprocessing (including working categorical encoding), feature engineering, and rigorous model comparison. Logistic Regression emerges as the best model for this income prediction task - a bit of a surprise, but a good illustration of how much a preprocessing fix can change which model actually performs best.
+**Stage 1** builds a complete ML pipeline with proper preprocessing (including working categorical encoding), feature engineering, and model comparison. Logistic Regression emerges as the best model for this income prediction task - outmatching Random Forest and a shallow Neural Network.
 
-**Stage 2** leverages this model within a conversational AI agent, combining it with a knowledge base (RAG) to create an interactive system that answers questions, makes predictions, and explores the dataset.
+**Stage 2** uses the previous model for a conversational AI agent, combining it with a knowledge base (RAG) to create an interactive system that answers questions, makes predictions, and explores the dataset.
 
-Together, these stages demonstrate how classical ML and modern LLM-driven agents can be integrated to build intelligent, deployable systems.
+Together, these stages demonstrate how classical ML and modern LLM-driven agents can be integrated to build sophisticated systems.
