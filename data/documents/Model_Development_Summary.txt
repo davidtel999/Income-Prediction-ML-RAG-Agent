@@ -62,7 +62,6 @@ Stratification ensures all three partitions maintain the 75.9%/24.1% class ratio
 STEP 2: Standardized Cleaning and Missing Value Imputation
 
 Raw data contained multiple missing value representations: "?", "n/a", "N/A", "", " ", "NA", "null", "NULL". These were standardized to NaN.
-
 Numeric columns: Filled with the median of the training set (robust to outliers).  
 Categorical columns: Filled with the mode of the training set. If all values missing, filled with "Unknown".
 
@@ -92,10 +91,7 @@ After encoding, the feature set grows from 14 raw columns to 102 columns. This p
 
 STEP 5: Feature Scaling
 
-StandardScaler applied to all numeric and one-hot encoded features, transforming to zero mean and unit variance:
-- Fitted on training set only
-- Applied identically to validation and test sets
-- Scaler saved as `models/scaler.pkl` for use in Stage 2
+StandardScaler applied to all numeric and one-hot encoded features, transforming to zero mean and unit variance: (1) Fitted on training set only, (2) Applied identically to validation and test sets, and (3) Scaler saved as `models/scaler.pkl` for use in Stage 2.
 
 4. Feature Engineering
 
@@ -118,9 +114,7 @@ The scree plot shows that with this many features, no small handful of component
 
 This doesn't mean PCA became useless here - it just means the categorical features carry a lot of small, spread-out signal rather than a few dominant directions. The 2D scatter plot (PC1 vs PC2) still shows the =<50K and >50K classes overlapping a bit, which confirms what we already suspected: this isn't something a simple linear division on two axes can separate cleanly.
 
-2D Scatter Plot (PC1 vs PC2):
-- Class Overlap: Blue (=<50K) and red (>50K) points heavily overlap, especially in the center.
-- Vertical Banding: Distinct stripes visible, reflecting the categorical feature structure (education level, occupation, etc. create discrete groupings).
+2D Scatter Plot (PC1 vs PC2): (1) Class Overlap: Blue (=<50K) and red (>50K) points heavily overlap, especially in the center, (2) Vertical Banding: Distinct stripes visible, reflecting the categorical feature structure (education level, occupation, etc. create discrete groupings).
 
 Note: With 102 columns, individual PCA loadings stop being very interpretable one by one, so we didn't try to pick out "top 5 features per component" this time the way we could before. For that, the model's own feature importances (see Section 7) give a much clearer picture of what's actually driving predictions.
 
@@ -142,13 +136,11 @@ We now compare the winning classical model against the neural network on the tes
 | Logistic Regression | 0.795 | 0.548 | 0.843 | 0.664 | 0.894 |
 | Neural Network | 0.844 | 0.710 | 0.598 | 0.649 | 0.892 |
 
-Note #1: Why is Logistic Regression winning this time, and not Random Forest or the Neural Network?
-Once the categorical features (especially `marital_status`) were actually available to the model, a simpler linear model turned out to separate the classes almost as well as the more complex ones - and slightly better on AUC. The Neural Network still wins on raw Accuracy (0.844 vs 0.795) and Precision (0.710 vs 0.548), but its Recall is much lower (0.598 vs 0.843), meaning it misses a lot more of the actual >50K earners. Logistic Regression catches far more of them, which matters more for a task like this.
+Note #1: Why is Logistic Regression winning this time, and not Random Forest or the Neural Network? Once the categorical features (especially `marital_status`) were actually available to the model, a simpler linear model turned out to separate the classes almost as well as the more complex ones - and slightly better on AUC. The Neural Network still wins on raw Accuracy (0.844 vs 0.795) and Precision (0.710 vs 0.548), but its Recall is much lower (0.598 vs 0.843), meaning it misses a lot more of the actual >50K earners. Logistic Regression catches far more of them, which matters more for a task like this.
 
 Note #2: This result flips what we found in our earlier run, where Random Forest came out on top. It's a good reminder of how much a preprocessing bug can quietly skew which model looks "best" - the ranking of models isn't fixed, it depends heavily on whether the features actually going into them are meaningful in the first place.
 
-Does the loss curve suggest the neural network had enough data to learn well?
-The training history shows a steady decline in both training and validation loss, with the most rapid improvement happening before epoch 40, and validation accuracy climbing to around 0.82-0.83 by epoch 100. The curves don't show obvious divergence, so the model isn't wildly overfitting, but it also isn't clearly outperforming the much simpler Logistic Regression - which is really the more interesting finding here.
+Does the loss curve suggest the neural network had enough data to learn well? The training history shows a steady decline in both training and validation loss, with the most rapid improvement happening before epoch 40, and validation accuracy climbing to around 0.82-0.83 by epoch 100. The curves don't show obvious divergence, so the model isn't wildly overfitting, but it also isn't clearly outperforming the much simpler Logistic Regression - which is really the more interesting finding here.
 
 As we see, the added complexity of the Neural Network still isn't clearly justified - Logistic Regression achieves a marginally higher AUC (0.894 vs 0.892) with a much simpler, more interpretable model, and a considerably better Recall.
 
@@ -167,5 +159,3 @@ Looking at the model's own feature importances (absolute coefficient magnitude),
 | `age` | 0.464 |
 
 It's worth pointing out that `marital_status_Married-civ-spouse` shows up as the 3rd most important feature here - this is a categorical feature that didn't even exist in the model before the encoding fix, so this is fairly direct evidence that the fix mattered, and not just a number moving around on a table.
-
-This model is carried forward to Stage 2.
