@@ -147,11 +147,11 @@ Two new features were created and added alongside original columns:
 
 ## 5. PCA Insights
 
-In an early version of the pipeline, the categorical encoding was problematic, keeping only the cleaned-up numeric features and losing potential information from the rest. This actually led to another model being assigned the label of "best model", which was Random Forest - with relevant details being shown on _Part 6._. Once one-hot encoding all 8 categorical variables, our feature space grew a lot, and we ended up with the 102 columns we talked about before.
+In an early version of the pipeline, the categorical encoding was problematic, keeping only the cleaned-up numeric features and losing potential information from the rest. This actually led to another model being assigned the label of "best model", which was Random Forest - with relevant details being shown in _Part 6._. After one-hot encoding all 8 categorical variables, we ended up with the 102 columns that were mentioned before.
 
-The scree plot shows that with this many features, no small handful of components dominates the variance anymore. We now need **76 components** to reach the 90% variance threshold, which is a big jump from the few components we needed before the encoding fix. This actually makes sense: instead of a few continuous variables like `hours_per_week` and `education_num` carrying most of the signal, we now have dozens of one-hot columns (individual occupation types, native countries, etc), and each one only contributes a tiny sliver of variance on its own.
+The scree plot shows that with this many features, no few components dominate the variance anymore. We now need **76 components** to reach the 90% variance threshold, which is a big jump from the few components we needed before the encoding fix. This actually makes sense: instead of a few continuous variables like `hours_per_week` and `education_num` carrying most of the signal, we now have dozens of one-hot columns (individual occupation types, native countries, etc), and each one only contributes a tiny sliver of variance on its own.
 
-This doesn't mean PCA became useless here - it just means the categorical features carry a lot of small, spread-out signal rather than a few dominant directions. The 2D scatter plot (PC1 vs PC2) still shows the =<50K and >50K classes overlapping a bit, which confirms what we already suspected: this isn't something a simple linear division on two axes can separate cleanly.
+This doesn't mean PCA became useless - it just means the categorical features carry a lot of small, spread-out signal rather than a few dominant directions. The 2D scatter plot (PC1 vs PC2) still shows the =<50K and >50K classes overlapping a bit, which confirms what we already suspected: this isn't something a simple linear division on two axes can separate cleanly.
 
 **2D Scatter Plot (PC1 vs PC2):**
 - **Class Overlap:** Blue (=<50K) and red (>50K) points heavily overlap, especially in the center.
@@ -166,7 +166,7 @@ _Note:_ With 102 columns, individual PCA loadings stop being very interpretable 
 ### Classical ML vs Neural Network (Test Set Results)
 
 | Model | Training Accuracy | Validation Accuracy | Validation AUC | Test Accuracy |
-|-------|-------------------|----------------------|-----------------|-----------------|
+|-------|-------------------|---------------------|----------------|---------------|
 | Logistic Regression | 0.792 | 0.802 | 0.884 | 0.795 |
 | Random Forest | 0.788 | 0.787 | 0.883 | 0.783 |
 
@@ -235,7 +235,7 @@ The conversational AI agent is built on top of the best model from Stage 1. It c
 ### Tool Definitions
 
 | Tool | Name | Triggered When |
-|------|------|---|
+|------|------|----------------|
 | RAG Retrieval | `KnowledgeBaseRetrieval` | User asks factual/conceptual questions about income factors |
 | Income Prediction | `IncomePrediction` | User provides personal attributes and requests a prediction |
 | Dataset Statistics | `DatasetStatistics` | User asks for numerical summaries (mean, median, distribution) |
@@ -263,25 +263,24 @@ Conversation memory is handled by `MemorySaver`, which persists chat history per
 
 ## 10. Knowledge Base
 
-11 domain-specific documents stored in `data/documents/`, chunked and embedded into ChromaDB at `data/vector_store/`:
+Ten domain-specific documents stored in `data/documents/`, chunked and embedded into ChromaDB at `data/vector_store/`:
 
 | # | Document | Type | Why Chosen |
-|---|----------|------|-----------|
-| 1 | Statistical Approach to Adult Census Income Level Prediction | PDF | Covers Stage 1 dataset and ML methodology |
+|---|----------|------|------------|
+| 1 | Statistical Approach to Adult Census Income Level Prediction | PDF | Description of the relevant dataset and ML logic |
 | 2 | Comparative Study of ML Algorithms on Census Income Data | PDF | Model comparison for income classification |
 | 3 | Causes and Consequences of Income Inequality | PDF | Socio-economic context |
 | 4 | Chartbook of Economic Inequality | PDF | Income distribution statistics |
-| 5 | Income Poverty and Valuation of Noncash Benefits (1994) | PDF | Historical income data |
-| 6 | Income Inequality in the United States | PDF | US-specific income factors |
-| 7 | Income in the United States | PDF | Census Bureau statistics |
-| 8 | Minimum Wages, Inequality and the Informal Sector | PDF | Labor market factors |
-| 9 | US Income 2024 (U.S. Census Bureau) | PDF | Current income benchmarks |
-| 10 | Dictionary of Economics | PDF | Domain terminology |
-| 11 | Model Development Summary | TXT | Stage 1 results and methods |
+| 5 | Income Inequality in the United States | PDF | US-specific income factors |
+| 6 | Income in the United States | PDF | Census Bureau statistics |
+| 7 | Minimum Wages, Inequality and the Informal Sector | PDF | Labor market factors |
+| 8 | US Income 2024 (U.S. Census Bureau) | PDF | Current income benchmarks |
+| 9 | Dictionary of Economics | PDF | Domain terminology |
+| 10 | Model Development Summary | TXT | Stage 1 methodology and results |
 
 **Chunking & Retrieval:**
-- Chunk size: 800 tokens
-- Chunk overlap: 150 tokens
+- Chunk size: 800 characters
+- Chunk overlap: 150 characters
 - Embedding model: `sentence-transformers/all-MiniLM-L6-v2`
 - Vector store: ChromaDB
 - Retrieval method: MMR (Maximal Marginal Relevance)
@@ -439,9 +438,13 @@ export OPENAI_API_KEY="sk-proj-..."
 
 **STEP 2: Build the vector store (one-time)**
 
+This loads your documents, splits them into chunks, and creates embeddings. The first run also downloads the embedding model, so it can take **5-10 minutes** depending on your hardware and the number of documents. You won't see much output while it works.
+
 ```bash
 python -m src.rag
 ```
+
+When it finishes, a `data/vector_store/` folder appears in the project. You only need to run this again if you add, remove or edit documents in `data/documents/`. Each rerun replaces the old store, so nothing is duplicated.
 
 **STEP 3: Start the agent**
 
