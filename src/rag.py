@@ -1,6 +1,7 @@
 import os
-import glob # For file searching
-import logging 
+import re  # Used to clean PDF extraction artifacts
+import glob # Used for file searching
+import logging # Used to suppress warnings from pypdf
 import warnings
 warnings.filterwarnings("ignore") # Suppress warnings for a cleaner output
 logging.getLogger("pypdf").setLevel(logging.ERROR) # Suppress pypdf warnings about malformed PDFs
@@ -45,10 +46,15 @@ def load_and_split_documents():
 
     print(f">> Loaded {len(documents)} document page(s) total")
 
+    # Remove the leader-dash artifacts left behind by the PDF extractor:
+    for d in documents:
+        d.page_content = re.sub(r"(?:leaderdash/?)+", " ", d.page_content)
+
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,
         chunk_overlap=CHUNK_OVERLAP,
-        separators=["\n", "\n\n", ".",". ", "!", "?", " ", "", "-"],
+        # Ordered from the biggest natural break to the smallest
+        separators=["\n\n", "\n", ". ", "? ", "! ", " ", ""],
     )
     chunks = splitter.split_documents(documents)
     print(f">> Created {len(chunks)} chunks")
@@ -56,16 +62,27 @@ def load_and_split_documents():
 
 # CHROMA_DB VECTOR STORE CREATION AND LOADING #
 def create_vector_store():
+    global _vectorstore  # so the module-level handle points at the fresh store
+
     chunks = load_and_split_documents()
     embeddings = _get_embeddings()
 
     os.makedirs(VECTOR_STORE_PATH, exist_ok=True)
+
+    # Wipe the old collection so reruns don't pile up duplicates:
+    Chroma(
+        collection_name=COLLECTION_NAME,
+        embedding_function=embeddings,
+        persist_directory=VECTOR_STORE_PATH,
+    ).delete_collection()
+
     vectorstore = Chroma.from_documents(
         documents=chunks,
         embedding=embeddings,
         collection_name=COLLECTION_NAME,
         persist_directory=VECTOR_STORE_PATH,
     )
+    _vectorstore = vectorstore
     print(f">> Vector store created at: {VECTOR_STORE_PATH}")
     return vectorstore
 
@@ -108,26 +125,27 @@ retrieval_tool = Tool(
     func=_retrieve_for_tool,
     description=(
         "Queries the local knowledge base to answer conceptual or factual domain questions. "
-        "Trigger this for inquiries regarding: UCI Adult Census features, socio-demographic trends, "
-        "HW1 models (Random Forest, Logistic Regression, MLP), preprocessing, and PCA insights. "
+        "Trigger this for inquiries regarding: UCI Adult Census features, socio-demographic trends. "
+        "Stage 1 models (Logistic Regression, Random Forest, MLP), preprocessing, and PCA insights. "
         "Input: Natural language question. "
         "Output: Relevant grounding context from project documentation."
     ),
 )
 
 # INTERACTIVE TESTING #
+
 if __name__ == "__main__":
     create_vector_store()
 
     queries = [
         "Which are the main factors that make the income less than 50k dollars?",
         "Does gender play a role in income?",
-        "Why was Random Forest the best model?",
+        "Why was Logistic Regression chosen as the best model?",
     ]
 
     for q in queries:
         context, docs = retrieve_context(q)
         print(f"\nUser query: {q}")
-        print(f"Retrieved chunks: {docs[0].page_content[:250]}")
+        print(f"Retrieved chunks: {docs[0].page_content[:300]}")
         print(f"Source: {os.path.basename(docs[0].metadata.get('source', '?'))}")
         print("\n")
