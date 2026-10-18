@@ -1,31 +1,36 @@
 # Data & ML
-pandas==2.0.3
-numpy==1.24.3
-scikit-learn==1.3.0
-joblib==1.3.1
+pandas
+numpy
+scikit-learn
+joblib
 
 # Neural Networks
-torch==2.0.1
-torchvision==0.15.2
+torch
+torchvision
 
 # Visualization
-matplotlib==3.7.2
+matplotlib
 
-# API & Web (for bonus Task 5)
-fastapi==0.103.0
-uvicorn==0.23.2
-pydantic==2.3.0
+# API & Web
+fastapi
+uvicorn
+pydantic
 
-# LLM & Agent (for Homework 2)
-openai==1.3.0
-langchain==0.0.308
-langgraph==0.0.21
-langchain-openai==0.0.5
+# LLM & Agent
+openai
+langchain
+langgraph
+langchain-openai
+langchain-community
+langchain-text-splitters
+pypdf
 
-# RAG & Embeddings (for Homework 2)
-sentence-transformers==2.2.2
-chromadb==0.4.10
+# RAG & Embeddings
+sentence-transformers
+chromadb
+langchain-huggingface
+langchain-chroma
 
-# Environment & utilities
-python-dotenv==1.0.0
-aiohttp==3.9.0
+# Utilities
+python-dotenv
+aiohttp
