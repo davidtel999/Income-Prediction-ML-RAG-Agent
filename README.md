@@ -412,9 +412,9 @@ python model_main.py
 ```
 
 This generates:
-- `models/best_model.pkl` (Logistic Regression classifier)
+- `models/best_model.pkl` (all-around best classifier)
 - `models/scaler.pkl` (preprocessing scaler)
-- `models/classical_model.pkl` (best classical model - Logistic Regression)
+- `models/classical_model.pkl` (best classical model)
 - `models/feature_columns.pkl` (training-time column order, used for consistent predictions)
 - `models/neural_network.pt` (neural network for comparison)
 - `models/confusion_matrix_*.png` (visualization)
